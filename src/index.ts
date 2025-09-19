@@ -24,6 +24,7 @@ import searchRouter from './routes/search';
 import healthRouter from './routes/health';
 import opportunitiesRouter from './routes/opportunities';
 import budgetRouter from './routes/budget';
+import dashboardRouter from './routes/dashboard';
 
 const app = express();
 const logger = createLogger();
@@ -32,7 +33,7 @@ const PORT = process.env.PORT || 3001;
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: true, // Allow all origins for testing
   credentials: true
 }));
 
@@ -57,14 +58,10 @@ app.use((req, res, next) => {
 // Health check (no auth required)
 app.use('/health', healthRouter);
 
-// Foundry API endpoints (no auth required - extracted from lambda)
+// All API endpoints (no auth required - public access)
 app.use('/api/v1/opportunities', opportunitiesRouter);
 app.use('/api/v1/budget', budgetRouter);
-
-// Authentication middleware for USAspending API routes
-app.use('/api', authMiddleware);
-
-// USAspending API Routes (auth required)
+app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/awards', awardsRouter);
 app.use('/api/v1/transactions', transactionsRouter);
 app.use('/api/v1/recipients', recipientsRouter);
@@ -72,6 +69,9 @@ app.use('/api/v1/agencies', agenciesRouter);
 app.use('/api/v1/spending', spendingRouter);
 app.use('/api/v1/reference', referenceRouter);
 app.use('/api/v1/search', searchRouter);
+
+// Authentication middleware (currently disabled - all endpoints are public)
+// app.use('/api', authMiddleware);
 
 // Error handling
 app.use(errorHandler);
@@ -84,10 +84,13 @@ async function startServer() {
     logger.info('Snowflake connection established successfully');
 
     app.listen(PORT, () => {
-      logger.info(`USAspending API server running on port ${PORT}`);
+      logger.info(`API Layer server running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info('Available endpoints:');
+      logger.info('Available public endpoints (no authentication required):');
       logger.info('  - GET  /health');
+      logger.info('  - GET/POST /api/v1/opportunities');
+      logger.info('  - GET/POST /api/v1/budget');
+      logger.info('  - GET  /api/v1/dashboard');
       logger.info('  - GET  /api/v1/awards');
       logger.info('  - GET  /api/v1/transactions');
       logger.info('  - GET  /api/v1/recipients');
@@ -95,8 +98,6 @@ async function startServer() {
       logger.info('  - GET  /api/v1/spending');
       logger.info('  - GET  /api/v1/reference');
       logger.info('  - GET  /api/v1/search');
-      logger.info('  - GET/POST /api/v1/opportunities');
-      logger.info('  - GET/POST /api/v1/budget');
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

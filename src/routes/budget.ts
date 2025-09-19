@@ -2,12 +2,14 @@
  * Budget API Routes
  * Provides access to defense budget allocation data from FOUNDRY.BUDGET.UNIFIED
  * Extracted and adapted from foundry_api lambda function
+ * Includes DoD Budget Intelligence endpoints migrated from foundry-point-prod
  */
 
 import { Router, Request, Response } from 'express';
 import { getDatabaseConfig } from '../config/database';
 import { QueryBuilder, FilterOptions } from '../utils/queryBuilder';
 import { createLogger } from '../utils/logger';
+import { budgetIntelligenceService } from '../services/budgetIntelligenceService';
 import snowflake from 'snowflake-sdk';
 
 const router = Router();
@@ -113,17 +115,18 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
     // Parse pagination parameters
     const pageNum = Math.max(1, parseInt(page as string) || 1);
-    const pageSize = Math.min(1000, Math.max(1, parseInt(page_size as string) || 10));
+    const pageSize = Math.min(50000, Math.max(1, parseInt(page_size as string) || 10));
 
     logger.info(`Budget request: page=${pageNum}, pageSize=${pageSize}, search="${search_keywords}"`);
 
     // Get column information
     const columnNames = await getBudgetColumns();
     if (columnNames.length === 0) {
-      return res.status(500).json({
+      res.status(500).json({
         error: 'Unable to retrieve table schema information',
         message: 'The budget table schema could not be accessed'
       });
+      return;
     }
 
     // Initialize query builder
@@ -205,7 +208,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
     // Parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const pageSize = Math.min(1000, Math.max(1, parseInt(page_size) || 10));
+    const pageSize = Math.min(50000, Math.max(1, parseInt(page_size) || 10));
 
     logger.info(`Budget POST request: page=${pageNum}, pageSize=${pageSize}`);
     logger.info('Filters:', JSON.stringify(filters, null, 2));
@@ -213,10 +216,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     // Get column information
     const columnNames = await getBudgetColumns();
     if (columnNames.length === 0) {
-      return res.status(500).json({
+      res.status(500).json({
         error: 'Unable to retrieve table schema information',
         message: 'The budget table schema could not be accessed'
       });
+      return;
     }
 
     // Initialize query builder
@@ -345,6 +349,270 @@ router.get('/summary', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error getting budget summary:', error);
     res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+// ========================
+// DOD BUDGET INTELLIGENCE ENDPOINTS
+// ========================
+
+/**
+ * GET /api/v1/budget/programs/summary
+ * Get budget programs summary with real utilization rates
+ */
+router.get('/programs/summary', async (req: Request, res: Response) => {
+  try {
+    const summary = await budgetIntelligenceService.get_budget_programs_summary();
+    
+    res.json({
+      success: true,
+      data: {
+        budget_totals: {
+          total_budget: summary.total_budget || 0,
+          total_programs: summary.total_programs || 0,
+          total_organizations: summary.total_organizations || 0,
+          total_categories: summary.total_categories || 0,
+        },
+        contract_linking: {
+          total_linkable: summary.contract_linkable_programs || 0,
+          pe_numbers: summary.pe_programs || 0,
+          bli_numbers: summary.bli_programs || 0,
+          weapons_systems: summary.weapons_programs || 0,
+        },
+        fiscal_breakdown: {
+          fy_2024_total: summary.fy_2024_total || 0,
+          fy_2025_total: summary.fy_2025_total || 0,
+          fy_2026_total: summary.fy_2026_total || 0,
+        },
+        utilization: {
+          real_utilization_rate: summary.real_utilization_rate,
+          total_obligated: summary.total_obligated
+        }
+      },
+      message: 'Budget programs summary retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting budget programs summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/account-shifts
+ * Get budget shifts between FY2025 and FY2026 by organization/branch
+ */
+router.get('/account-shifts', async (req: Request, res: Response) => {
+  try {
+    const shifts = await budgetIntelligenceService.get_account_shifts_analysis();
+    
+    res.json({
+      success: true,
+      data: {
+        shifts: shifts,
+        total_records: shifts.length,
+        fiscal_years: [2025, 2026],
+      },
+      message: 'Account shifts analysis retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting account shifts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/trends
+ * Get budget execution trends showing requested vs enacted vs spent vs remaining
+ */
+router.get('/trends', async (req: Request, res: Response) => {
+  try {
+    const {
+      organization,
+      category,
+      fiscal_year,
+      min_budget,
+      limit = 100,
+      offset = 0
+    } = req.query;
+
+    const trends = await budgetIntelligenceService.get_budget_execution_trends({
+      organization: organization as string,
+      category: category as string,
+      fiscal_year: fiscal_year ? parseInt(fiscal_year as string) : undefined,
+      min_budget: min_budget ? parseFloat(min_budget as string) : undefined,
+      limit: parseInt(limit as string) || 100,
+      offset: parseInt(offset as string) || 0
+    });
+
+    res.json({
+      success: true,
+      data: trends,
+      message: 'Budget execution trends retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting budget trends:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/programs
+ * Get individual budget programs with filtering and pagination
+ */
+router.get('/programs', async (req: Request, res: Response) => {
+  try {
+    const {
+      organization,
+      category,
+      weapons_category,
+      fiscal_year,
+      min_budget,
+      search_query,
+      sort_by = 'primary_budget_amount',
+      sort_order = 'desc',
+      limit = 100,
+      offset = 0
+    } = req.query;
+
+    const programs = await budgetIntelligenceService.get_budget_programs({
+      organization: organization as string,
+      category: category as string,
+      weapons_category: weapons_category as string,
+      fiscal_year: fiscal_year ? parseInt(fiscal_year as string) : undefined,
+      min_budget: min_budget ? parseFloat(min_budget as string) : undefined,
+      search_query: search_query as string,
+      sort_by: sort_by as string,
+      sort_order: sort_order as string,
+      limit: parseInt(limit as string) || 100,
+      offset: parseInt(offset as string) || 0
+    });
+
+    res.json({
+      success: true,
+      data: programs,
+      message: 'Budget programs retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting budget programs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/programs/by-category
+ * Get programs grouped by category
+ */
+router.get('/programs/by-category', async (req: Request, res: Response) => {
+  try {
+    const { fiscal_year } = req.query;
+    
+    const categories = await budgetIntelligenceService.get_programs_by_category(
+      fiscal_year ? parseInt(fiscal_year as string) : undefined
+    );
+
+    res.json({
+      success: true,
+      data: {
+        categories: categories,
+        total_categories: categories.length,
+      },
+      message: 'Programs by category retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting programs by category:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/programs/weapons-intelligence
+ * Get weapons systems intelligence and analysis
+ */
+router.get('/programs/weapons-intelligence', async (req: Request, res: Response) => {
+  try {
+    const {
+      category,
+      min_budget,
+      limit = 50
+    } = req.query;
+
+    const weaponsIntel = await budgetIntelligenceService.get_weapons_intelligence({
+      category: category as string,
+      min_budget: min_budget ? parseFloat(min_budget as string) : undefined,
+      limit: parseInt(limit as string) || 50
+    });
+
+    res.json({
+      success: true,
+      data: {
+        summary: weaponsIntel.summary,
+        high_value_systems: weaponsIntel.high_value_systems,
+        categories: weaponsIntel.categories,
+        organizations: weaponsIntel.organizations,
+      },
+      message: 'Weapons intelligence retrieved successfully',
+      last_updated: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error getting weapons intelligence:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * GET /api/v1/budget/health
+ * Check budget intelligence service health
+ */
+router.get('/health', async (req: Request, res: Response) => {
+  try {
+    const isConnected = await budgetIntelligenceService.connect();
+    
+    res.json({
+      success: true,
+      data: {
+        status: isConnected ? 'healthy' : 'unhealthy',
+        service: 'DoD Budget Intelligence',
+        timestamp: new Date().toISOString(),
+        connection: isConnected ? 'connected' : 'disconnected'
+      },
+      message: isConnected ? 'Budget intelligence service is healthy' : 'Budget intelligence service is unhealthy'
+    });
+  } catch (error) {
+    logger.error('Error checking budget intelligence health:', error);
+    res.status(500).json({
+      success: false,
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     });

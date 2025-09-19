@@ -113,7 +113,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
     // Parse pagination parameters
     const pageNum = Math.max(1, parseInt(page as string) || 1);
-    const pageSize = Math.min(1000, Math.max(1, parseInt(page_size as string) || 10));
+    const pageSize = Math.min(50000, Math.max(1, parseInt(page_size as string) || 10));
 
     logger.info(`Opportunities request: page=${pageNum}, pageSize=${pageSize}, search="${search_keywords}"`);
 
@@ -206,7 +206,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
     // Parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const pageSize = Math.min(1000, Math.max(1, parseInt(page_size) || 10));
+    const pageSize = Math.min(50000, Math.max(1, parseInt(page_size) || 10));
 
     logger.info(`Opportunities POST request: page=${pageNum}, pageSize=${pageSize}`);
     logger.info('Filters:', JSON.stringify(filters, null, 2));
