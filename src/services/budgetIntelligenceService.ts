@@ -674,7 +674,7 @@ export class DoDBudgetIntelligence {
       // Build WHERE conditions for fiscal year and phase filtering
       const whereConditions: string[] = [];
       
-      // Fiscal year filtering
+      // Fiscal year filtering - this is the key fix
       if (fiscalYearNum) {
         whereConditions.push(`FISCAL_YEAR = ${fiscalYearNum}`);
       } else {
@@ -693,29 +693,32 @@ export class DoDBudgetIntelligence {
         whereConditions.push(`PHASE IN ('Total', 'Enacted', 'Actual')`);
       }
 
+      // Define mappings for use in all queries
+      const orgMapping: { [key: string]: string } = {
+        "Navy": "N",
+        "Air Force": "F",
+        "Army": "A",
+        "N": "N",
+        "F": "F",
+        "A": "A",
+        "DoD": "DoD"
+      };
+
+      const categoryPatterns: { [key: string]: string } = {
+        "R&D": "R1_%",
+        "Procurement": "P1_%",
+        "Operations": "O1_%",
+        "Military Construction": "M1_%"
+      };
+
       // Organization filter
       if (organization && organization !== "All Agencies") {
-        const orgMapping: { [key: string]: string } = {
-          "Navy": "N",
-          "Air Force": "F",
-          "Army": "A",
-          "N": "N",
-          "F": "F",
-          "A": "A",
-          "DoD": "DoD"
-        };
         const actualOrg = orgMapping[organization] || organization;
         whereConditions.push(`COALESCE(ORGANIZATION, 'DoD') = '${actualOrg}'`);
       }
 
       // Category filter
       if (category && category !== "All Categories") {
-        const categoryPatterns: { [key: string]: string } = {
-          "R&D": "R1_%",
-          "Procurement": "P1_%",
-          "Operations": "O1_%",
-          "Military Construction": "M1_%"
-        };
         const pattern = categoryPatterns[category] || category;
         whereConditions.push(`APPROPRIATION_TYPE LIKE '${pattern}'`);
       }
@@ -748,219 +751,67 @@ export class DoDBudgetIntelligence {
       };
       const sortField = sortFieldMapping[sort_by] || "AMOUNT_K";
 
-      // Build query based on fiscal year with proper phase prioritization
-      let query: string;
-      
-      if (fiscalYearNum === 2025) {
-        // FY2025: Prioritize Enacted over Total
-        query = `
-          WITH phase_prioritized AS (
-              SELECT *,
-                  ROW_NUMBER() OVER (
-                      PARTITION BY ELEMENT_CODE, FISCAL_YEAR, APPROPRIATION_TYPE
-                      ORDER BY CASE WHEN PHASE = 'Enacted' THEN 1 WHEN PHASE = 'Total' THEN 2 ELSE 3 END
-                  ) as phase_rank
-              FROM ${this.unifiedTable}
-              WHERE ${whereClause}
-          ),
-          program_data AS (
-              SELECT
-                  ROW_NUMBER() OVER (ORDER BY ${sortField} ${sort_order.toUpperCase()}) as row_num,
-                  ELEMENT_CODE as identifier,
-                  ELEMENT_TITLE as program_name,
-                  APPROPRIATION_TYPE,
-                  ACCOUNT_CODE,
-                  AMOUNT_K as primary_budget_amount,
-                  FISCAL_YEAR,
-                  PHASE,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R&D'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'Procurement'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'Operations'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'Military Construction'
-                      ELSE 'Other'
-                  END as category,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R1'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'P1'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'O1'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'M1'
-                      ELSE 'OTHER'
-                  END as identifier_type,
-                  COALESCE(ORGANIZATION, 'DoD') as organization,
-                  TRUE as contract_linkable
-              FROM phase_prioritized
-              WHERE phase_rank = 1
-          ),
-          total_count AS (
-              SELECT COUNT(DISTINCT identifier) as total FROM program_data
-          )
-          SELECT pd.*, tc.total, CONCAT('program_', pd.row_num) as id
-          FROM program_data pd
-          CROSS JOIN total_count tc
-          WHERE pd.row_num > ${offset} AND pd.row_num <= ${offset + limit}
-          ORDER BY pd.row_num
-        `;
-      } else if (fiscalYearNum === 2024) {
-        // FY2024: Prioritize Actual over Total
-        query = `
-          WITH phase_prioritized AS (
-              SELECT *,
-                  ROW_NUMBER() OVER (
-                      PARTITION BY ELEMENT_CODE, FISCAL_YEAR, APPROPRIATION_TYPE
-                      ORDER BY CASE WHEN PHASE = 'Actual' THEN 1 WHEN PHASE = 'Total' THEN 2 ELSE 3 END
-                  ) as phase_rank
-              FROM ${this.unifiedTable}
-              WHERE ${whereClause}
-          ),
-          program_data AS (
-              SELECT
-                  ROW_NUMBER() OVER (ORDER BY ${sortField} ${sort_order.toUpperCase()}) as row_num,
-                  ELEMENT_CODE as identifier,
-                  ELEMENT_TITLE as program_name,
-                  APPROPRIATION_TYPE,
-                  ACCOUNT_CODE,
-                  AMOUNT_K as primary_budget_amount,
-                  FISCAL_YEAR,
-                  PHASE,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R&D'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'Procurement'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'Operations'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'Military Construction'
-                      ELSE 'Other'
-                  END as category,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R1'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'P1'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'O1'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'M1'
-                      ELSE 'OTHER'
-                  END as identifier_type,
-                  COALESCE(ORGANIZATION, 'DoD') as organization,
-                  TRUE as contract_linkable
-              FROM phase_prioritized
-              WHERE phase_rank = 1
-          ),
-          total_count AS (
-              SELECT COUNT(DISTINCT identifier) as total FROM program_data
-          )
-          SELECT pd.*, tc.total, CONCAT('program_', pd.row_num) as id
-          FROM program_data pd
-          CROSS JOIN total_count tc
-          WHERE pd.row_num > ${offset} AND pd.row_num <= ${offset + limit}
-          ORDER BY pd.row_num
-        `;
-      } else if (fiscalYearNum === 2026) {
-        // FY2026: Use Total phase only
-        query = `
-          WITH phase_prioritized AS (
-              SELECT *,
-                  ROW_NUMBER() OVER (
-                      PARTITION BY ELEMENT_CODE, FISCAL_YEAR, APPROPRIATION_TYPE
-                      ORDER BY CASE WHEN PHASE = 'Total' THEN 1 ELSE 2 END
-                  ) as phase_rank
-              FROM ${this.unifiedTable}
-              WHERE ${whereClause}
-          ),
-          program_data AS (
-              SELECT
-                  ROW_NUMBER() OVER (ORDER BY ${sortField} ${sort_order.toUpperCase()}) as row_num,
-                  ELEMENT_CODE as identifier,
-                  ELEMENT_TITLE as program_name,
-                  APPROPRIATION_TYPE,
-                  ACCOUNT_CODE,
-                  AMOUNT_K as primary_budget_amount,
-                  FISCAL_YEAR,
-                  PHASE,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R&D'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'Procurement'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'Operations'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'Military Construction'
-                      ELSE 'Other'
-                  END as category,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R1'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'P1'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'O1'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'M1'
-                      ELSE 'OTHER'
-                  END as identifier_type,
-                  COALESCE(ORGANIZATION, 'DoD') as organization,
-                  TRUE as contract_linkable
-              FROM phase_prioritized
-              WHERE phase_rank = 1
-          ),
-          total_count AS (
-              SELECT COUNT(DISTINCT identifier) as total FROM program_data
-          )
-          SELECT pd.*, tc.total, CONCAT('program_', pd.row_num) as id
-          FROM program_data pd
-          CROSS JOIN total_count tc
-          WHERE pd.row_num > ${offset} AND pd.row_num <= ${offset + limit}
-          ORDER BY pd.row_num
-        `;
-      } else {
-        // Default: Use phase prioritization for all fiscal years
-        query = `
-          WITH phase_prioritized AS (
-              SELECT *,
-                  ROW_NUMBER() OVER (
-                      PARTITION BY ELEMENT_CODE, FISCAL_YEAR, APPROPRIATION_TYPE
-                      ORDER BY CASE 
-                          WHEN FISCAL_YEAR = 2024 AND PHASE = 'Actual' THEN 1
-                          WHEN FISCAL_YEAR = 2024 AND PHASE = 'Total' THEN 2
-                          WHEN FISCAL_YEAR = 2025 AND PHASE = 'Enacted' THEN 1
-                          WHEN FISCAL_YEAR = 2025 AND PHASE = 'Total' THEN 2
-                          WHEN FISCAL_YEAR = 2026 AND PHASE = 'Total' THEN 1
-                          ELSE 2
-                      END
-                  ) as phase_rank
-              FROM ${this.unifiedTable}
-              WHERE ${whereClause}
-          ),
-          program_data AS (
-              SELECT
-                  ROW_NUMBER() OVER (ORDER BY ${sortField} ${sort_order.toUpperCase()}) as row_num,
-                  ELEMENT_CODE as identifier,
-                  ELEMENT_TITLE as program_name,
-                  APPROPRIATION_TYPE,
-                  ACCOUNT_CODE,
-                  AMOUNT_K as primary_budget_amount,
-                  FISCAL_YEAR,
-                  PHASE,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R&D'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'Procurement'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'Operations'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'Military Construction'
-                      ELSE 'Other'
-                  END as category,
-                  CASE
-                      WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R1'
-                      WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'P1'
-                      WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'O1'
-                      WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'M1'
-                      ELSE 'OTHER'
-                  END as identifier_type,
-                  COALESCE(ORGANIZATION, 'DoD') as organization,
-                  TRUE as contract_linkable
-              FROM phase_prioritized
-              WHERE phase_rank = 1
-          ),
-          total_count AS (
-              SELECT COUNT(DISTINCT identifier) as total FROM program_data
-          )
-          SELECT pd.*, tc.total, CONCAT('program_', pd.row_num) as id
-          FROM program_data pd
-          CROSS JOIN total_count tc
-          WHERE pd.row_num > ${offset} AND pd.row_num <= ${offset + limit}
-          ORDER BY pd.row_num
-        `;
-      }
+      // Build unified query with fiscal year specific phase prioritization
+      const phaseOrderClause = fiscalYearNum === 2024 
+        ? "CASE WHEN PHASE = 'Actual' THEN 1 WHEN PHASE = 'Total' THEN 2 ELSE 3 END"
+        : fiscalYearNum === 2025 
+        ? "CASE WHEN PHASE = 'Enacted' THEN 1 WHEN PHASE = 'Total' THEN 2 ELSE 3 END"
+        : fiscalYearNum === 2026
+        ? "CASE WHEN PHASE = 'Total' THEN 1 ELSE 2 END"
+        : "CASE WHEN FISCAL_YEAR = 2024 AND PHASE = 'Actual' THEN 1 WHEN FISCAL_YEAR = 2024 AND PHASE = 'Total' THEN 2 WHEN FISCAL_YEAR = 2025 AND PHASE = 'Enacted' THEN 1 WHEN FISCAL_YEAR = 2025 AND PHASE = 'Total' THEN 2 WHEN FISCAL_YEAR = 2026 AND PHASE = 'Total' THEN 1 ELSE 2 END";
 
-      const resultRows = await this.executeQuery(query);
+      const query = `
+        WITH phase_prioritized AS (
+            SELECT *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ELEMENT_CODE, FISCAL_YEAR, APPROPRIATION_TYPE
+                    ORDER BY ${phaseOrderClause}
+                ) as phase_rank
+            FROM ${this.unifiedTable}
+            WHERE ${whereClause}
+        ),
+        program_data AS (
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY ${sortField} ${sort_order.toUpperCase()}) as row_num,
+                ELEMENT_CODE as identifier,
+                ELEMENT_TITLE as program_name,
+                APPROPRIATION_TYPE,
+                ACCOUNT_CODE,
+                AMOUNT_K as primary_budget_amount,
+                FISCAL_YEAR,
+                PHASE,
+                CASE
+                    WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R&D'
+                    WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'Procurement'
+                    WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'Operations'
+                    WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'Military Construction'
+                    ELSE 'Other'
+                END as category,
+                CASE
+                    WHEN APPROPRIATION_TYPE LIKE 'R1_%' THEN 'R1'
+                    WHEN APPROPRIATION_TYPE LIKE 'P1_%' THEN 'P1'
+                    WHEN APPROPRIATION_TYPE LIKE 'O1_%' THEN 'O1'
+                    WHEN APPROPRIATION_TYPE LIKE 'M1_%' THEN 'M1'
+                    ELSE 'OTHER'
+                END as identifier_type,
+                COALESCE(ORGANIZATION, 'DoD') as organization,
+                TRUE as contract_linkable
+            FROM phase_prioritized
+            WHERE phase_rank = 1
+        ),
+        total_count AS (
+            SELECT COUNT(DISTINCT identifier) as total FROM program_data
+        )
+        SELECT pd.*, tc.total, CONCAT('program_', pd.row_num) as id
+        FROM program_data pd
+        CROSS JOIN total_count tc
+        WHERE pd.row_num > ${offset} AND pd.row_num <= ${offset + limit}
+        ORDER BY pd.row_num
+      `;
+
+      // Disable caching to ensure fresh results for fiscal year filtering
+      const result = await snowflakeService.executeQuery(query, [], { useCache: false });
+      const resultRows = result.rows;
       if (resultRows.length === 0) {
         return { data: [], total: 0 };
       }
