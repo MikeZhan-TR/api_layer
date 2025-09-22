@@ -86,7 +86,7 @@ async function startServer() {
     await snowflakeService.testConnection();
     logger.info('Snowflake connection established successfully');
 
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       logger.info(`API Layer server running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Public URL: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:' + PORT}`);

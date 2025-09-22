@@ -111,7 +111,7 @@ router.get('/overview', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: budgetMetrics,
       message: 'Dashboard overview retrieved successfully'
@@ -119,7 +119,7 @@ router.get('/overview', async (req: Request, res: Response) => {
 
   } catch (error) {
     logger.error('Error getting dashboard overview:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error occurred'

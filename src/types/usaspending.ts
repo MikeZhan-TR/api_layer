@@ -225,13 +225,13 @@ export interface CacheOptions {
 // User context from Supabase
 export interface UserContext {
   id: string;
-  email?: string;
+  email?: string | undefined;
   role?: string;
   permissions?: string[];
   subscription_tier?: 'free' | 'pro' | 'enterprise';
   rate_limit?: {
     requests_per_hour: number;
     requests_remaining: number;
-  };
+  } | undefined;
 }
 

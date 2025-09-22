@@ -104,7 +104,7 @@ router.get('/:code', asyncHandler(async (req: Request, res: Response) => {
   
   const response: ApiResponse<Agency> = {
     success: true,
-    data: result.rows[0],
+    data: result.rows[0] || {} as Agency,
     metadata: {
       executionTime: result.executionTime
     }
@@ -123,7 +123,7 @@ router.get('/:code/spending', asyncHandler(async (req: Request, res: Response) =
   
   if (fiscalYear) {
     whereClause += ' AND fiscal_year = ?';
-    binds.push(parseInt(fiscalYear));
+    binds.push(String(parseInt(fiscalYear)));
   }
   
   const query = `

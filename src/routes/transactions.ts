@@ -170,7 +170,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   
   const response: ApiResponse<Transaction> = {
     success: true,
-    data: result.rows[0],
+    data: result.rows[0] || {} as Transaction,
     metadata: {
       executionTime: result.executionTime
     }

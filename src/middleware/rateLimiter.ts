@@ -6,19 +6,12 @@ const logger = createLogger();
 
 // Create rate limiter instances
 const rateLimiter = new RateLimiterMemory({
-  keyGenerator: (req: Request) => {
-    // Use user ID if authenticated, otherwise IP address
-    return req.user?.id || req.ip;
-  },
   points: parseInt(process.env.API_RATE_LIMIT_MAX_REQUESTS || '100'), // Number of requests
   duration: parseInt(process.env.API_RATE_LIMIT_WINDOW_MS || '900000') / 1000, // Per 15 minutes (in seconds)
 });
 
 // Stricter rate limiter for expensive operations
 const strictRateLimiter = new RateLimiterMemory({
-  keyGenerator: (req: Request) => {
-    return req.user?.id || req.ip;
-  },
   points: 10, // 10 requests
   duration: 900, // Per 15 minutes
 });
@@ -29,7 +22,7 @@ export async function rateLimiterMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
-    const key = req.user?.id || req.ip;
+    const key = req.user?.id || req.ip || 'anonymous';
     
     // Apply rate limiting
     await rateLimiter.consume(key);
@@ -47,7 +40,7 @@ export async function rateLimiterMiddleware(
     next();
   } catch (rateLimiterRes) {
     logger.warn('Rate limit exceeded', {
-      key: req.user?.id || req.ip,
+      key: req.user?.id || req.ip || 'anonymous',
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       path: req.path,
@@ -80,7 +73,7 @@ export async function strictRateLimiterMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
-    const key = req.user?.id || req.ip;
+    const key = req.user?.id || req.ip || 'anonymous';
     
     // Apply strict rate limiting
     await strictRateLimiter.consume(key);
@@ -98,7 +91,7 @@ export async function strictRateLimiterMiddleware(
     next();
   } catch (rateLimiterRes) {
     logger.warn('Strict rate limit exceeded', {
-      key: req.user?.id || req.ip,
+      key: req.user?.id || req.ip || 'anonymous',
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       path: req.path,
@@ -139,12 +132,11 @@ export function tieredRateLimiter(req: Request, res: Response, next: NextFunctio
   const limit = tierLimits[userTier];
   
   const tieredLimiter = new RateLimiterMemory({
-    keyGenerator: (req: Request) => `${req.user?.id || req.ip}:${userTier}`,
     points: limit.points,
     duration: limit.duration,
   });
   
-  tieredLimiter.consume(req.user?.id || req.ip)
+  tieredLimiter.consume(req.user?.id || req.ip || 'anonymous')
     .then(() => {
       res.set({
         'X-RateLimit-Tier': userTier,

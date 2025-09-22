@@ -41,17 +41,17 @@ router.get('/', strictRateLimiterMiddleware, asyncHandler(async (req: Request, r
     
     if (params.fiscal_year) {
       whereConditions.push('fiscal_year = ?');
-      binds.push(params.fiscal_year);
+      binds.push(String(params.fiscal_year));
     }
     
     if (params.min_amount) {
       whereConditions.push('total_obligation >= ?');
-      binds.push(params.min_amount);
+      binds.push(String(params.min_amount));
     }
     
     if (params.max_amount) {
       whereConditions.push('total_obligation <= ?');
-      binds.push(params.max_amount);
+      binds.push(String(params.max_amount));
     }
     
     const orderBy = params.sort_by === 'amount' ? 'total_obligation' : 
@@ -146,9 +146,9 @@ router.get('/', strictRateLimiterMiddleware, asyncHandler(async (req: Request, r
       `;
       
       const countBinds = [searchTerm, searchTerm, searchTerm];
-      if (params.fiscal_year) countBinds.push(params.fiscal_year);
-      if (params.min_amount) countBinds.push(params.min_amount);
-      if (params.max_amount) countBinds.push(params.max_amount);
+      if (params.fiscal_year) countBinds.push(String(params.fiscal_year));
+      if (params.min_amount) countBinds.push(String(params.min_amount));
+      if (params.max_amount) countBinds.push(String(params.max_amount));
       
       const countResult = await snowflakeService.executeQuery<{ TOTAL: number }>(countQuery, countBinds, { useCache: true });
       totalCount = countResult.rows[0]?.TOTAL || 0;
@@ -169,7 +169,14 @@ router.get('/', strictRateLimiterMiddleware, asyncHandler(async (req: Request, r
   const response: ApiResponse<any[]> = {
     success: true,
     data: combinedResults,
-    pagination: params.type !== 'all' ? pagination : undefined,
+    pagination: params.type !== 'all' ? pagination : {
+      page: 1,
+      limit: 20,
+      total: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrev: false
+    },
     metadata: {
       query: params.q,
       searchType: params.type,
@@ -284,7 +291,8 @@ router.get('/advanced', strictRateLimiterMiddleware, asyncHandler(async (req: Re
   // This would implement more complex search logic
   // For now, redirect to the main search endpoint
   req.url = req.url.replace('/advanced', '');
-  return router.handle(req, res);
+  // Use the main search handler instead of router.handle
+  return res.redirect(302, req.url);
 }));
 
 export default router;

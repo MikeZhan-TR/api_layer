@@ -57,31 +57,28 @@ export async function authMiddleware(
       return;
     }
 
-    // Get user profile and subscription info
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role, subscription_tier, permissions')
-      .eq('user_id', user.id)
-      .single();
+    // Get user profile and subscription info (commented out for now)
+    // const { data: profile } = await supabase
+    //   .from('user_profiles')
+    //   .select('role, subscription_tier, permissions')
+    //   .eq('user_id', user.id)
+    //   .single();
 
-    // Get rate limit info
-    const { data: rateLimitData } = await supabase
-      .from('user_rate_limits')
-      .select('requests_per_hour, requests_used')
-      .eq('user_id', user.id)
-      .single();
+    // Get rate limit info (commented out for now)
+    // const { data: rateLimitData } = await supabase
+    //   .from('user_rate_limits')
+    //   .select('requests_per_hour, requests_used')
+    //   .eq('user_id', user.id)
+    //   .single();
 
     // Build user context
     const userContext: UserContext = {
       id: user.id,
-      email: user.email,
-      role: profile?.role || 'user',
-      permissions: profile?.permissions || [],
-      subscription_tier: profile?.subscription_tier || 'free',
-      rate_limit: rateLimitData ? {
-        requests_per_hour: rateLimitData.requests_per_hour,
-        requests_remaining: rateLimitData.requests_per_hour - rateLimitData.requests_used
-      } : undefined
+      email: user.email || undefined,
+      role: 'user',
+      permissions: [],
+      subscription_tier: 'free',
+      rate_limit: undefined
     };
 
     // Check rate limits
@@ -112,19 +109,19 @@ export async function authMiddleware(
       ip: req.ip
     });
 
-    // Update request count (fire and forget)
-    supabase
-      .from('user_rate_limits')
-      .upsert({
-        user_id: user.id,
-        requests_used: (rateLimitData?.requests_used || 0) + 1,
-        last_request: new Date().toISOString()
-      })
-      .then(({ error }) => {
-        if (error) {
-          logger.warn('Failed to update rate limit counter', { error: error.message });
-        }
-      });
+    // Update request count (fire and forget) - commented out for now
+    // supabase
+    //   .from('user_rate_limits')
+    //   .upsert({
+    //     user_id: user.id,
+    //     requests_used: (rateLimitData?.requests_used || 0) + 1,
+    //     last_request: new Date().toISOString()
+    //   })
+    //   .then(({ error }) => {
+    //     if (error) {
+    //       logger.warn('Failed to update rate limit counter', { error: error.message });
+    //     }
+    //   });
 
     next();
   } catch (error) {

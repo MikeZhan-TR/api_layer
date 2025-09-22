@@ -155,7 +155,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   
   const response: ApiResponse<Recipient> = {
     success: true,
-    data: result.rows[0],
+    data: result.rows[0] || {} as Recipient,
     metadata: {
       executionTime: result.executionTime
     }

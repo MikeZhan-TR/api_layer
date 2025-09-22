@@ -25,10 +25,10 @@ function createDatabaseConfig(): DatabaseConfig {
       schema: process.env.SNOWFLAKE_SCHEMA || 'API_SCHEMA',
       warehouse: process.env.SNOWFLAKE_WAREHOUSE || 'COMPUTE_WH',
       role: process.env.SNOWFLAKE_ROLE || 'DEV_API_ROLE',
-      // Connection pool settings
-      maxConnections: 10,
-      acquireTimeoutMillis: 30000,
-      createRetryIntervalMillis: 500,
+      // Connection pool settings (removed unsupported options)
+      // maxConnections: 10,
+      // acquireTimeoutMillis: 30000,
+      // createRetryIntervalMillis: 500,
       // Query settings
       clientSessionKeepAlive: true,
       clientSessionKeepAliveHeartbeatFrequency: 3600, // 1 hour
