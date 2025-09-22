@@ -32,9 +32,12 @@ const PORT = process.env.PORT || 3001;
 
 // Security middleware
 app.use(helmet());
+// CORS configuration - allow all origins for now (will configure later)
 app.use(cors({
   origin: true, // Allow all origins for testing
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Performance middleware
@@ -83,9 +86,10 @@ async function startServer() {
     await snowflakeService.testConnection();
     logger.info('Snowflake connection established successfully');
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       logger.info(`API Layer server running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Public URL: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:' + PORT}`);
       logger.info('Available public endpoints (no authentication required):');
       logger.info('  - GET  /health');
       logger.info('  - GET/POST /api/v1/opportunities');
