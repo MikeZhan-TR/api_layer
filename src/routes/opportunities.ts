@@ -9,6 +9,7 @@ import { getDatabaseConfig } from '../config/database';
 import { QueryBuilder, FilterOptions } from '../utils/queryBuilder';
 import { createLogger } from '../utils/logger';
 import snowflake from 'snowflake-sdk';
+import { searchCortex, convertCortexResultsToOpportunities } from '../services/cortexSearchService';
 
 const router = Router();
 const logger = createLogger();
@@ -193,7 +194,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/v1/opportunities
- * Advanced opportunities search with complex filters (matches lambda function format)
+ * Advanced opportunities search with complex filters and Cortex search integration
  */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -201,15 +202,58 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       page = 1,
       page_size = 10,
       search_keywords = '',
-      filters = {}
+      filters = {},
+      use_cortex = true, // New parameter to enable/disable Cortex search
+      columns = ['DESCRIPTION', 'TITLE', 'SOL_NUMBER', 'FPDS_CODE'], // Default columns for Cortex search
+      limit = 10 // Default limit for Cortex search
     } = req.body;
 
     // Parse pagination parameters
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(50000, Math.max(1, parseInt(page_size) || 10));
 
-    logger.info(`Opportunities POST request: page=${pageNum}, pageSize=${pageSize}`);
+    logger.info(`Opportunities POST request: page=${pageNum}, pageSize=${pageSize}, use_cortex=${use_cortex}`);
     logger.info('Filters:', JSON.stringify(filters, null, 2));
+
+    // If search_keywords are provided and Cortex is enabled, use Cortex search
+    if (search_keywords && use_cortex) {
+      try {
+        logger.info('Using Cortex search for keywords:', search_keywords);
+        
+        const cortexRequest = {
+          query: search_keywords,
+          columns: columns,
+          limit: limit
+        };
+
+        logger.info('Cortex search request:', JSON.stringify(cortexRequest, null, 2));
+        const cortexResponse = await searchCortex(cortexRequest);
+        const opportunities = convertCortexResultsToOpportunities(cortexResponse.results);
+
+        // Return Cortex search results
+        res.json({
+          data: opportunities,
+          total_count: opportunities.length,
+          page: pageNum,
+          page_size: pageSize,
+          search_method: 'cortex',
+          cortex_request_id: cortexResponse.request_id,
+          search_params: {
+            query: search_keywords,
+            columns: columns,
+            limit: limit
+          }
+        });
+
+        return;
+      } catch (cortexError) {
+        logger.warn('Cortex search failed, falling back to SQL search:', cortexError);
+        // Fall through to regular SQL search
+      }
+    }
+
+    // Fallback to regular SQL search
+    logger.info('Using SQL search');
 
     // Get column information
     const columnNames = await getOpportunitiesColumns();
@@ -246,11 +290,64 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       data: opportunities,
       total_count: totalCount,
       page: pageNum,
-      page_size: pageSize
+      page_size: pageSize,
+      search_method: 'sql'
     });
 
   } catch (error) {
     logger.error('Error in opportunities POST endpoint:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
+/**
+ * POST /api/v1/opportunities/cortex-search
+ * Direct Cortex search endpoint for advanced search capabilities
+ */
+router.post('/cortex-search', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      query = '',
+      columns = ['DESCRIPTION', 'TITLE', 'SOL_NUMBER', 'FPDS_CODE'],
+      limit = 10
+    } = req.body;
+
+    if (!query) {
+      res.status(400).json({
+        error: 'Query parameter is required',
+        message: 'Please provide a search query'
+      });
+      return;
+    }
+
+    logger.info(`Cortex search request: query="${query}", columns=${JSON.stringify(columns)}, limit=${limit}`);
+
+    const cortexRequest = {
+      query,
+      columns,
+      limit
+    };
+
+    const cortexResponse = await searchCortex(cortexRequest);
+    const opportunities = convertCortexResultsToOpportunities(cortexResponse.results);
+
+    res.json({
+      data: opportunities,
+      total_count: opportunities.length,
+      search_method: 'cortex',
+      cortex_request_id: cortexResponse.request_id,
+      search_params: {
+        query,
+        columns,
+        limit
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error in Cortex search endpoint:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
