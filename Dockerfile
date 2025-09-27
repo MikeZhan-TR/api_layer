@@ -10,8 +10,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install Node.js dependencies
-RUN npm install
+# Install Node.js dependencies (without postinstall script)
+RUN npm install --ignore-scripts
 
 # Install Python dependencies
 RUN python3.11 -m pip install --break-system-packages snowflake-connector-python[snowpark]==3.7.0
