@@ -17,6 +17,7 @@ RUN npm install --ignore-scripts
 RUN python3.11 -m pip install --break-system-packages snowflake-connector-python[snowpark]==3.7.0
 RUN python3.11 -m pip install --break-system-packages cryptography==42.0.5
 RUN python3.11 -m pip install --break-system-packages snowflake-snowpark-python==1.12.0
+RUN python3.11 -m pip install --break-system-packages snowflake-core
 
 # Copy source code
 COPY . .
