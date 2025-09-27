@@ -307,6 +307,34 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
  * POST /api/v1/opportunities/cortex-search
  * Direct Cortex search endpoint for advanced search capabilities
  */
+// Test endpoint to check environment variables
+router.get('/test-env', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const envVars = {
+      CORTEX_SNOWFLAKE_ACCOUNT: process.env.CORTEX_SNOWFLAKE_ACCOUNT || 'Not set',
+      CORTEX_SNOWFLAKE_USER: process.env.CORTEX_SNOWFLAKE_USER || 'Not set',
+      CORTEX_SNOWFLAKE_ROLE: process.env.CORTEX_SNOWFLAKE_ROLE || 'Not set',
+      CORTEX_SNOWFLAKE_WAREHOUSE: process.env.CORTEX_SNOWFLAKE_WAREHOUSE || 'Not set',
+      CORTEX_SNOWFLAKE_DATABASE: process.env.CORTEX_SNOWFLAKE_DATABASE || 'Not set',
+      CORTEX_SNOWFLAKE_SCHEMA: process.env.CORTEX_SNOWFLAKE_SCHEMA || 'Not set',
+      CORTEX_SNOWFLAKE_PRIVATE_KEY: process.env.CORTEX_SNOWFLAKE_PRIVATE_KEY ? 
+        `Set (length: ${process.env.CORTEX_SNOWFLAKE_PRIVATE_KEY.length})` : 'Not set'
+    };
+    
+    res.json({
+      environment_variables: envVars,
+      node_env: process.env.NODE_ENV,
+      all_env_keys: Object.keys(process.env).filter(key => key.includes('SNOWFLAKE') || key.includes('CORTEX'))
+    });
+  } catch (error) {
+    logger.error('Error in environment test endpoint:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
 // Test endpoint to check Python environment
 router.get('/test-python', async (req: Request, res: Response): Promise<void> => {
   try {
