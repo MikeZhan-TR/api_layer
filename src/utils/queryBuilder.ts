@@ -227,7 +227,7 @@ export class QueryBuilder {
       }
     });
 
-    return allConditions.length > 0 ? allConditions.join(' AND ') : '';
+    return allConditions.length > 0 ? allConditions.join(' OR ') : '';
   }
 
   /**
