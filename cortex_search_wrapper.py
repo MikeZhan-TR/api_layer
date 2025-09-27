@@ -13,16 +13,42 @@ from cryptography.hazmat.primitives import serialization
 
 def load_private_key():
     """Load the private key for authentication"""
-    try:
-        with open("rsa_key_private.pem", "rb") as key_file:
+    # Try multiple possible private key locations
+    private_key_paths = [
+        "rsa_key_private.pem",
+        "/app/rsa_key_private.pem",
+        os.path.join(os.getcwd(), "rsa_key_private.pem"),
+        os.path.join(os.path.dirname(__file__), "rsa_key_private.pem")
+    ]
+    
+    # Also check if private key is provided as environment variable
+    private_key_content = os.environ.get("SNOWFLAKE_PRIVATE_KEY")
+    if private_key_content:
+        try:
             private_key = serialization.load_pem_private_key(
-                key_file.read(),
+                private_key_content.encode(),
                 password=None,
             )
-        return private_key
-    except Exception as e:
-        print(json.dumps({"error": f"Failed to load private key: {str(e)}"}))
-        sys.exit(1)
+            return private_key
+        except Exception as e:
+            print(json.dumps({"error": f"Failed to load private key from environment: {str(e)}"}))
+            sys.exit(1)
+    
+    # Try file paths
+    for key_path in private_key_paths:
+        try:
+            if os.path.exists(key_path):
+                with open(key_path, "rb") as key_file:
+                    private_key = serialization.load_pem_private_key(
+                        key_file.read(),
+                        password=None,
+                    )
+                return private_key
+        except Exception as e:
+            continue
+    
+    print(json.dumps({"error": f"Private key not found in any of these locations: {private_key_paths}"}))
+    sys.exit(1)
 
 def create_snowflake_session():
     """Create a Snowflake session with the private key"""
@@ -30,14 +56,14 @@ def create_snowflake_session():
         private_key = load_private_key()
         
         connection_params = {
-            "account": "TLTXFYN-YV03708",
-            "user": "SAGARTIWARI",
+            "account": os.environ.get("SNOWFLAKE_ACCOUNT", "TLTXFYN-YV03708"),
+            "user": os.environ.get("SNOWFLAKE_USER", "SAGARTIWARI"),
             "private_key": private_key,
             "authenticator": "SNOWFLAKE_JWT",
-            "role": "ACCOUNTADMIN",
-            "warehouse": "COMPUTE_WH",
-            "database": "FOUNDRY",
-            "schema": "SAM_CONTRACTS",
+            "role": os.environ.get("SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
+            "warehouse": os.environ.get("SNOWFLAKE_WAREHOUSE", "COMPUTE_WH"),
+            "database": os.environ.get("SNOWFLAKE_DATABASE", "FOUNDRY"),
+            "schema": os.environ.get("SNOWFLAKE_SCHEMA", "SAM_CONTRACTS"),
         }
         
         session = Session.builder.configs(connection_params).create()
