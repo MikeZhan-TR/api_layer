@@ -1,8 +1,8 @@
 # Use Node.js base image
 FROM node:18
 
-# Install Python 3.11
-RUN apt-get update && apt-get install -y python3.11 python3.11-pip python3.11-venv
+# Install Python 3.11 and pip
+RUN apt-get update && apt-get install -y python3.11 python3-pip python3.11-venv
 
 # Set working directory
 WORKDIR /app
