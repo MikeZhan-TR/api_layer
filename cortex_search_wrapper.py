@@ -22,7 +22,7 @@ def load_private_key():
     ]
     
     # Also check if private key is provided as environment variable
-    private_key_content = os.environ.get("SNOWFLAKE_PRIVATE_KEY")
+    private_key_content = os.environ.get("CORTEX_SNOWFLAKE_PRIVATE_KEY")
     if private_key_content:
         try:
             private_key = serialization.load_pem_private_key(
@@ -56,14 +56,14 @@ def create_snowflake_session():
         private_key = load_private_key()
         
         connection_params = {
-            "account": os.environ.get("SNOWFLAKE_ACCOUNT", "TLTXFYN-YV03708"),
-            "user": os.environ.get("SNOWFLAKE_USER", "SAGARTIWARI"),
+            "account": os.environ.get("CORTEX_SNOWFLAKE_ACCOUNT", "TLTXFYN-YV03708"),
+            "user": os.environ.get("CORTEX_SNOWFLAKE_USER", "SAGARTIWARI"),
             "private_key": private_key,
             "authenticator": "SNOWFLAKE_JWT",
-            "role": os.environ.get("SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
-            "warehouse": os.environ.get("SNOWFLAKE_WAREHOUSE", "COMPUTE_WH"),
-            "database": os.environ.get("SNOWFLAKE_DATABASE", "FOUNDRY"),
-            "schema": os.environ.get("SNOWFLAKE_SCHEMA", "SAM_CONTRACTS"),
+            "role": os.environ.get("CORTEX_SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
+            "warehouse": os.environ.get("CORTEX_SNOWFLAKE_WAREHOUSE", "COMPUTE_WH"),
+            "database": os.environ.get("CORTEX_SNOWFLAKE_DATABASE", "FOUNDRY"),
+            "schema": os.environ.get("CORTEX_SNOWFLAKE_SCHEMA", "SAM_CONTRACTS"),
         }
         
         session = Session.builder.configs(connection_params).create()

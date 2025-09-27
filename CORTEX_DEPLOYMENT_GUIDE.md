@@ -17,24 +17,26 @@ This guide explains how to deploy the Cortex search functionality to Railway wit
 ## Railway Configuration
 
 ### 1. Environment Variables
-Set these in your Railway dashboard:
+Set these **ADDITIONAL** environment variables in your Railway dashboard (these won't interfere with your existing setup):
 
 ```
-SNOWFLAKE_ACCOUNT=TLTXFYN-YV03708
-SNOWFLAKE_USER=SAGARTIWARI
-SNOWFLAKE_ROLE=ACCOUNTADMIN
-SNOWFLAKE_WAREHOUSE=COMPUTE_WH
-SNOWFLAKE_DATABASE=FOUNDRY
-SNOWFLAKE_SCHEMA=SAM_CONTRACTS
-SNOWFLAKE_PRIVATE_KEY=<your-private-key-content>
+CORTEX_SNOWFLAKE_ACCOUNT=TLTXFYN-YV03708
+CORTEX_SNOWFLAKE_USER=SAGARTIWARI
+CORTEX_SNOWFLAKE_ROLE=ACCOUNTADMIN
+CORTEX_SNOWFLAKE_WAREHOUSE=COMPUTE_WH
+CORTEX_SNOWFLAKE_DATABASE=FOUNDRY
+CORTEX_SNOWFLAKE_SCHEMA=SAM_CONTRACTS
+CORTEX_SNOWFLAKE_PRIVATE_KEY=<your-private-key-content>
 ```
+
+**⚠️ Important**: These are separate from your existing Snowflake variables and won't affect your current functionality.
 
 ### 2. Private Key Setup
 You have two options:
 
 **Option A: Environment Variable (Recommended)**
 - Copy the content of `rsa_key_private.pem`
-- Set it as `SNOWFLAKE_PRIVATE_KEY` environment variable in Railway
+- Set it as `CORTEX_SNOWFLAKE_PRIVATE_KEY` environment variable in Railway
 
 **Option B: File Upload**
 - Upload `rsa_key_private.pem` to your Railway project
