@@ -323,15 +323,15 @@ router.get('/test-python', async (req: Request, res: Response): Promise<void> =>
     let stdout = '';
     let stderr = '';
 
-    pythonProcess.stdout.on('data', (data) => {
+    pythonProcess.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    pythonProcess.stderr.on('data', (data) => {
+    pythonProcess.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
-    pythonProcess.on('close', (code) => {
+    pythonProcess.on('close', (code: number | null) => {
       logger.info(`Python test completed with code: ${code}`);
       logger.info(`STDOUT: ${stdout}`);
       logger.info(`STDERR: ${stderr}`);
@@ -345,7 +345,7 @@ router.get('/test-python', async (req: Request, res: Response): Promise<void> =>
       });
     });
 
-    pythonProcess.on('error', (error) => {
+    pythonProcess.on('error', (error: Error) => {
       logger.error('Failed to start Python process:', error);
       res.status(500).json({
         error: 'Failed to start Python process',
