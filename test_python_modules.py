@@ -13,7 +13,7 @@ def test_imports():
     
     try:
         import snowflake
-        results['snowflake'] = f"Version: {snowflake.__version__}"
+        results['snowflake'] = "Snowflake connector imported successfully"
     except ImportError as e:
         results['snowflake'] = f"Error: {e}"
     
