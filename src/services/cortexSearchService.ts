@@ -30,7 +30,7 @@ export async function searchCortex(request: CortexSearchRequest): Promise<Cortex
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), 'cortex_search_wrapper.py');
     
-    // Try python3 first, then python
+    // Use python3 for production, python for Windows dev
     const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
     
     // Execute the Python wrapper script

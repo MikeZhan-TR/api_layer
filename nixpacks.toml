@@ -1,12 +1,12 @@
 [phases.setup]
-nixPkgs = ["nodejs", "python311", "python311Packages.pip"]
+nixPkgs = ["nodejs", "python311"]
 
 [phases.install]
 cmds = [
   "npm install",
-  "python -m pip install --break-system-packages --upgrade pip",
-  "python -m pip install --break-system-packages snowflake-connector-python[snowpark]==3.7.0",
-  "python -m pip install --break-system-packages cryptography==42.0.5"
+  "python3 -m pip install --break-system-packages --upgrade pip",
+  "python3 -m pip install --break-system-packages snowflake-connector-python[snowpark]==3.7.0",
+  "python3 -m pip install --break-system-packages cryptography==42.0.5"
 ]
 
 [phases.build]
