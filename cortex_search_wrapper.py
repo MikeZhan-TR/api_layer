@@ -7,9 +7,16 @@ A Python script that can be called from Node.js to perform Cortex searches
 import sys
 import json
 import os
-from snowflake.core import Root
 from snowflake.snowpark import Session
 from cryptography.hazmat.primitives import serialization
+
+# Try to import snowflake.core, fallback if not available
+try:
+    from snowflake.core import Root
+    CORE_AVAILABLE = True
+except ImportError:
+    CORE_AVAILABLE = False
+    print(json.dumps({"error": "snowflake.core module not available - using alternative approach"}))
 
 def load_private_key():
     """Load the private key for authentication"""
@@ -81,26 +88,55 @@ def perform_cortex_search(query, columns=None, limit=10):
         # Create session
         session = create_snowflake_session()
         
-        # Create Root object
-        root = Root(session)
-        
-        # Get Cortex service
-        cortex_service = (root
-            .databases["FOUNDRY"]
-            .schemas["SAM_CONTRACTS"]
-            .cortex_search_services["CONTRACT_SEARCH"]
-        )
-        
-        # Perform search
-        response = cortex_service.search(
-            query=query,
-            columns=columns,
-            limit=limit,
-        )
-        
-        # Convert to JSON and return
-        result = response.to_json()
-        return json.loads(result)
+        if CORE_AVAILABLE:
+            # Use snowflake.core approach
+            root = Root(session)
+            cortex_service = (root
+                .databases["FOUNDRY"]
+                .schemas["SAM_CONTRACTS"]
+                .cortex_search_services["CONTRACT_SEARCH"]
+            )
+            
+            # Perform search
+            response = cortex_service.search(
+                query=query,
+                columns=columns,
+                limit=limit,
+            )
+            
+            # Convert to JSON and return
+            result = response.to_json()
+            return json.loads(result)
+        else:
+            # Alternative approach using SQL
+            # Build the SQL query for Cortex search
+            columns_str = ", ".join([f'"{col}"' for col in columns])
+            
+            sql_query = f"""
+            SELECT {columns_str}
+            FROM TABLE(
+                FOUNDRY.SAM_CONTRACTS.CONTRACT_SEARCH.search(
+                    '{query}',
+                    {limit}
+                )
+            )
+            """
+            
+            # Execute the query
+            result = session.sql(sql_query).collect()
+            
+            # Convert to list of dictionaries
+            results = []
+            for row in result:
+                row_dict = {}
+                for i, col in enumerate(columns):
+                    row_dict[col] = row[i] if i < len(row) else None
+                results.append(row_dict)
+            
+            return {
+                "results": results,
+                "request_id": f"sql_{hash(query)}_{limit}"
+            }
         
     except Exception as e:
         return {"error": f"Cortex search failed: {str(e)}"}
