@@ -307,6 +307,61 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
  * POST /api/v1/opportunities/cortex-search
  * Direct Cortex search endpoint for advanced search capabilities
  */
+// Test endpoint to check Python environment
+router.get('/test-python', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { spawn } = require('child_process');
+    const path = require('path');
+    
+    const scriptPath = path.join(process.cwd(), 'test_python_modules.py');
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    
+    logger.info(`Testing Python environment with command: ${pythonCommand} ${scriptPath}`);
+    
+    const pythonProcess = spawn(pythonCommand, [scriptPath]);
+    
+    let stdout = '';
+    let stderr = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      logger.info(`Python test completed with code: ${code}`);
+      logger.info(`STDOUT: ${stdout}`);
+      logger.info(`STDERR: ${stderr}`);
+      
+      res.json({
+        exit_code: code,
+        stdout: stdout,
+        stderr: stderr,
+        python_command: pythonCommand,
+        script_path: scriptPath
+      });
+    });
+
+    pythonProcess.on('error', (error) => {
+      logger.error('Failed to start Python process:', error);
+      res.status(500).json({
+        error: 'Failed to start Python process',
+        message: error.message
+      });
+    });
+
+  } catch (error) {
+    logger.error('Error in Python test endpoint:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
 router.post('/cortex-search', async (req: Request, res: Response): Promise<void> => {
   try {
     const {
